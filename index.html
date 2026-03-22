@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flappy Pro - Update 5 Final</title>
+<style>
+body { margin:0; overflow:hidden; background:#000; font-family:Arial Black; }
+canvas { display:block; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+function resize(){
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resize);
+resize();
+
+// --- MENU ---
+let screen = "menu"; // menu, game, shop
+
+// --- ECONOMIA ---
+let coins = parseInt(localStorage.getItem("coins")) || 0;
+let ownedSkins = JSON.parse(localStorage.getItem("skins")) || [0];
+let currentSkin = 0;
+
+// --- SKINS ---
+let skins = [
+  {color:"#fdd835", price:0},
+  {color:"#ff5252", price:50},
+  {color:"#40c4ff", price:100},
+  {color:"#69f0ae", price:150}
+];
+
+// --- DIFICULDADE ---
+let hardMode = false;
+
+// --- MISSÕES ---
+let mission = {
+  text: "Faça 10 pontos",
+  done: false
+};
+
+// --- PLAYER ---
+let bird = {
+  x:80,
+  y:200,
+  r:14,
+  v:0,
+  g:0.4,
+  jump:-7,
+  shield:false
+};
+
+let pipes = [];
+let score = 0;
+let frames = 0;
+let gameOver = false;
+
+// --- INPUT ---
+window.addEventListener("click", (e)=>{
+  
+  if(screen === "menu"){
+    if(e.clientY < canvas.height/2){
+      startGame();
+    } else if(e.clientY < canvas.height/2 + 100){
+      hardMode = !hardMode;
+    } else {
+      screen = "shop";
+    }
+    return;
+  }
+
+  if(screen === "shop"){
+    let index = Math.floor(e.clientY / 80);
+    if(skins[index]){
+      if(ownedSkins.includes(index)){
+        currentSkin = index;
+      } else if(coins >= skins[index].price){
+        coins -= skins[index].price;
+        ownedSkins.push(index);
+      }
+      save();
+    } else {
+      screen = "menu";
+    }
+    return;
+  }
+
+  if(gameOver){
+    screen = "menu";
+    return;
+  }
+
+  bird.v = bird.jump;
+});
+
+function save(){
+  localStorage.setItem("coins", coins);
+  localStorage.setItem("skins", JSON.stringify(ownedSkins));
+}
+
+// --- GAME ---
+function startGame(){
+  screen = "game";
+  pipes = [];
+  score = 0;
+  frames = 0;
+  gameOver = false;
+  bird.y = canvas.height/2;
+  bird.v = 0;
+}
+
+// --- UPDATE ---
+function update(){
+  if(screen !== "game" || gameOver) return;
+
+  bird.v += bird.g;
+  bird.y += bird.v;
+
+  if(frames % (hardMode ? 70 : 90) === 0){
+    let gap = hardMode ? 120 : 150;
+    let top = Math.random() * (canvas.height - gap - 200) + 60;
+    pipes.push({x:canvas.width, top, bottom:top+gap});
+  }
+
+  pipes.forEach((p,i)=>{
+    p.x -= hardMode ? 5 : 3;
+
+    if(bird.x + bird.r > p.x && bird.x - bird.r < p.x + 70){
+      if(bird.y < p.top || bird.y > p.bottom){
+        hit();
+      }
+    }
+
+    if(!p.passed && bird.x > p.x){
+      score++;
+      coins++;
+      p.passed = true;
+    }
+
+    if(p.x < -100) pipes.splice(i,1);
+  });
+
+  // missão
+  if(score >= 10 && !mission.done){
+    mission.done = true;
+    coins += 20;
+  }
+
+  if(bird.y > canvas.height || bird.y < 0){
+    hit();
+  }
+
+  frames++;
+}
+
+function hit(){
+  if(bird.shield){
+    bird.shield = false;
+    return;
+  }
+  gameOver = true;
+}
+
+// --- DRAW BIRD (SKIN REAL AQUI 🔥) ---
+function drawBird(){
+  ctx.save();
+  ctx.translate(bird.x, bird.y);
+
+  ctx.fillStyle = skins[currentSkin].color; // 🔥 SKIN APLICADA
+  ctx.beginPath();
+  ctx.arc(0,0,bird.r,0,Math.PI*2);
+  ctx.fill();
+
+  // olho
+  ctx.fillStyle = "white";
+  ctx.beginPath();
+  ctx.arc(5,-5,4,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle = "black";
+  ctx.beginPath();
+  ctx.arc(6,-5,2,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// --- DRAW ---
+function draw(){
+
+  ctx.fillStyle = "#4facfe";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  if(screen === "menu"){
+    ctx.fillStyle="white";
+    ctx.textAlign="center";
+
+    ctx.font="40px Arial";
+    ctx.fillText("FLAPPY PRO", canvas.width/2, 150);
+
+    ctx.font="20px Arial";
+    ctx.fillText("TOCAR PARA JOGAR", canvas.width/2, canvas.height/2);
+
+    ctx.fillText("Modo difícil: " + (hardMode ? "ON 😈" : "OFF"), canvas.width/2, canvas.height/2 + 60);
+
+    ctx.fillText("LOJA ↓", canvas.width/2, canvas.height/2 + 120);
+
+    ctx.fillText("Moedas: " + coins, canvas.width/2, canvas.height - 50);
+    return;
+  }
+
+  if(screen === "shop"){
+    ctx.fillStyle="white";
+    ctx.textAlign="center";
+    ctx.font="20px Arial";
+
+    skins.forEach((s,i)=>{
+      let y = 100 + i*80;
+
+      ctx.fillStyle = s.color;
+      ctx.beginPath();
+      ctx.arc(canvas.width/2 - 60, y, 20, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.fillStyle="white";
+
+      if(ownedSkins.includes(i)){
+        ctx.fillText("Selecionar", canvas.width/2 + 20, y+5);
+      } else {
+        ctx.fillText(s.price + " moedas", canvas.width/2 + 20, y+5);
+      }
+    });
+
+    ctx.fillText("Clique fora para voltar", canvas.width/2, canvas.height - 50);
+    return;
+  }
+
+  // GAME
+  pipes.forEach(p=>{
+    ctx.fillStyle="green";
+    ctx.fillRect(p.x,0,70,p.top);
+    ctx.fillRect(p.x,p.bottom,70,canvas.height);
+  });
+
+  drawBird();
+
+  ctx.fillStyle="white";
+  ctx.font="30px Arial";
+  ctx.fillText(score, canvas.width/2, 50);
+
+  ctx.fillText("💰 " + coins, 80, 50);
+
+  ctx.font="14px Arial";
+  ctx.fillText("Missão: " + mission.text, canvas.width/2, 80);
+
+  if(gameOver){
+    ctx.fillText("GAME OVER", canvas.width/2, canvas.height/2);
+  }
+}
+
+// --- LOOP ---
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+
+</script>
+</body>
+</html>
