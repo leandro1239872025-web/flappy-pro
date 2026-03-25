@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flappy Pro 5.1</title>
+<style>
+body { margin:0; overflow:hidden; background:#000; font-family:Arial Black; }
+canvas { display:block; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+function resize(){
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+
+// --- ESTADO ---
+let menu = true;
+let coins = parseInt(localStorage.getItem("coins")) || 0;
+
+let skins = [
+  {color:"#fdd835", price:0},
+  {color:"#ff5252", price:50},
+  {color:"#40c4ff", price:100}
+];
+
+let ownedSkins = JSON.parse(localStorage.getItem("ownedSkins")) || [0];
+let currentSkin = 0;
+
+let bird = {
+  x:80,
+  y:200,
+  r:14,
+  v:0,
+  g:0.32,
+  jump:-6.2,
+  shield:false
+};
+
+let pipes = [];
+let bullets = [];
+let boss = null;
+
+let score = 0;
+let frames = 0;
+let speed = 2.8;
+let gameOver = false;
+let level = 1;
+
+// --- MISSÃO ---
+let missionDone = localStorage.getItem("mission1") === "true";
+
+// --- INPUT ---
+window.addEventListener("mousedown", click);
+window.addEventListener("touchstart", touch, {passive:false});
+
+function click(e){
+  handleInput(e.clientX, e.clientY);
+}
+
+function touch(e){
+  e.preventDefault();
+  handleInput(e.touches[0].clientX, e.touches[0].clientY);
+}
+
+function handleInput(x,y){
+
+  if(menu){
+    menu = false;
+    return;
+  }
+
+  if(gameOver){
+    reset();
+    return;
+  }
+
+  // DASH
+  if(x > canvas.width-140 && y > canvas.height-80){
+    bird.v = -9;
+    return;
+  }
+
+  // TIRO
+  if(x > canvas.width-70 && y > canvas.height-80){
+    bullets.push({x:bird.x,y:bird.y});
+    return;
+  }
+
+  // NORMAL
+  bird.v = bird.jump;
+}
+
+// --- RESET ---
+function reset(){
+  bird.y = canvas.height/2;
+  bird.v = 0;
+  pipes=[];
+  bullets=[];
+  boss=null;
+  score=0;
+  frames=0;
+  speed=2.8;
+  gameOver=false;
+}
+
+// --- LOJA ---
+function buySkin(i){
+  if(ownedSkins.includes(i)){
+    currentSkin = i;
+  } else if(coins >= skins[i].price){
+    coins -= skins[i].price;
+    ownedSkins.push(i);
+    currentSkin = i;
+    save();
+  }
+}
+
+function save(){
+  localStorage.setItem("coins", coins);
+  localStorage.setItem("ownedSkins", JSON.stringify(ownedSkins));
+}
+
+// --- FASE ---
+function updateLevel(){
+  level = Math.floor(score/10)+1;
+  speed = 2.8 + (level*0.3);
+}
+
+// --- BOSS ---
+function spawnBoss(){
+  boss = {x:canvas.width, y:canvas.height/2};
+}
+
+// --- UPDATE ---
+function update(){
+
+  if(menu || gameOver) return;
+
+  bird.v += bird.g;
+  bird.y += bird.v;
+
+  updateLevel();
+
+  if(bird.y > canvas.height-25 || bird.y < 0) hit();
+
+  if(frames % 100 === 0){
+    let gap = 160 - (level*5);
+    let top = Math.random()*(canvas.height-gap-200)+60;
+    pipes.push({x:canvas.width, top, bottom:top+gap});
+  }
+
+  if(score>0 && score%20===0 && !boss){
+    spawnBoss();
+  }
+
+  pipes.forEach((p,i)=>{
+    p.x -= speed;
+
+    if(bird.x + bird.r > p.x && bird.x - bird.r < p.x+60){
+      if(bird.y < p.top || bird.y > p.bottom){
+        hit();
+      }
+    }
+
+    if(!p.passed && bird.x > p.x){
+      score++;
+      p.passed = true;
+    }
+
+    if(p.x < -100) pipes.splice(i,1);
+  });
+
+  bullets.forEach((b,bi)=>{
+    b.x += 6;
+  });
+
+  // BOSS
+  if(boss){
+    boss.x -= 2;
+
+    if(Math.hypot(bird.x-boss.x, bird.y-boss.y) < 30){
+      hit();
+    }
+
+    if(boss.x < -100) boss=null;
+  }
+
+  // MISSÃO
+  if(score>=10 && !missionDone){
+    missionDone = true;
+    localStorage.setItem("mission1","true");
+    coins += 30;
+    save();
+  }
+
+  frames++;
+}
+
+function hit(){
+  if(bird.shield){
+    bird.shield=false;
+    return;
+  }
+  gameOver=true;
+}
+
+// --- DESENHO DO PÁSSARO (SKIN PROFISSIONAL) ---
+function drawBird(){
+  ctx.save();
+  ctx.translate(bird.x, bird.y);
+
+  ctx.rotate(Math.max(-0.5, Math.min(0.5, bird.v / 10)));
+
+  // Corpo
+  ctx.fillStyle = skins[currentSkin].color;
+  ctx.beginPath();
+  ctx.arc(0, 0, bird.r, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "black";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Asa animada
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  ctx.beginPath();
+  ctx.ellipse(-5, 2, 7, 4 + Math.sin(frames * 0.3) * 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Olho
+  ctx.fillStyle = "white";
+  ctx.beginPath();
+  ctx.arc(5, -4, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "black";
+  ctx.beginPath();
+  ctx.arc(6, -4, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Bico
+  ctx.fillStyle = "#ff9800";
+  ctx.beginPath();
+  ctx.moveTo(10, 0);
+  ctx.lineTo(18, 2);
+  ctx.lineTo(10, 5);
+  ctx.fill();
+
+  // Brilho
+  ctx.globalAlpha = 0.2;
+  ctx.fillStyle = "white";
+  ctx.beginPath();
+  ctx.arc(-3, -6, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+// --- DRAW ---
+function draw(){
+
+  ctx.fillStyle="#4facfe";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  if(menu){
+    ctx.fillStyle="white";
+    ctx.textAlign="center";
+    ctx.font="30px Arial";
+    ctx.fillText("FLAPPY PRO 5.1", canvas.width/2, 200);
+    ctx.fillText("Clique para jogar", canvas.width/2, 260);
+    ctx.fillText("Moedas: "+coins, canvas.width/2, 320);
+
+    skins.forEach((s,i)=>{
+      ctx.fillStyle = s.color;
+      ctx.fillRect(100+i*80,400,50,50);
+    });
+
+    return;
+  }
+
+  // CANOS
+  ctx.fillStyle="green";
+  pipes.forEach(p=>{
+    ctx.fillRect(p.x,0,60,p.top);
+    ctx.fillRect(p.x,p.bottom,60,canvas.height);
+  });
+
+  // BOSS
+  if(boss){
+    ctx.fillStyle="purple";
+    ctx.beginPath();
+    ctx.arc(boss.x,boss.y,20,0,Math.PI*2);
+    ctx.fill();
+  }
+
+  // TIROS
+  ctx.fillStyle="orange";
+  bullets.forEach(b=>{
+    ctx.fillRect(b.x,b.y,6,4);
+  });
+
+  // PÁSSARO
+  drawBird();
+
+  // UI
+  ctx.fillStyle="white";
+  ctx.font="30px Arial";
+  ctx.fillText(score, canvas.width/2,50);
+
+  ctx.font="14px Arial";
+  ctx.fillText("Lv."+level, 20, 30);
+
+  // BOTÕES
+  ctx.fillStyle="rgba(255,255,255,0.3)";
+  ctx.fillRect(canvas.width-140,canvas.height-80,60,60);
+  ctx.fillRect(canvas.width-70,canvas.height-80,60,60);
+
+  ctx.fillStyle="white";
+  ctx.fillText("D", canvas.width-120, canvas.height-45);
+  ctx.fillText("F", canvas.width-45, canvas.height-45);
+
+  if(gameOver){
+    ctx.fillStyle="white";
+    ctx.font="30px Arial";
+    ctx.fillText("GAME OVER", canvas.width/2, canvas.height/2);
+  }
+}
+
+// LOOP
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+
+</script>
+</body>
+</html>
