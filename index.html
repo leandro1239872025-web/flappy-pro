@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flappy Pro 5.1 - Versão Final Corrigida</title>
+<style>
+body { margin:0; overflow:hidden; background:#000; font-family:Arial Black; touch-action: none; }
+canvas { display:block; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<script>
+// ====================== SETUP ======================
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+
+// ====================== ESTADO ======================
+let menu = true;
+let coins = parseInt(localStorage.getItem("coins")) || 0;
+let highScore = parseInt(localStorage.getItem("highScore")) || 0;
+
+const skins = [
+  {color:"#fdd835", price:0},
+  {color:"#ff5252", price:50},
+  {color:"#40c4ff", price:100}
+];
+
+let ownedSkins = JSON.parse(localStorage.getItem("ownedSkins")) || [0];
+let currentSkin = 0;
+
+const bird = { x: 90, y: 250, r: 15, v: 0, g: 0.35, jump: -7.8 };
+
+let pipes = [];
+let bullets = [];
+let particles = [];
+let boss = null;
+let bossHP = 5;
+
+let score = 0;
+let frames = 0;
+let speed = 3;
+let gameOver = false;
+let level = 1;
+
+let lastDash = 0;
+let lastShot = 0;
+const DASH_COOLDOWN = 1100;
+const SHOT_COOLDOWN = 240;
+
+let missionDone = localStorage.getItem("mission1") === "true";
+
+// ====================== AUDIO (Web Audio API) ======================
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playSound(type) {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  if (type === "jump") {
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.15);
+    gain.gain.value = 0.3;
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+  } else if (type === "shoot") {
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+    gain.gain.value = 0.25;
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+  } else if (type === "hit") {
+    osc.type = "square";
+    osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+    gain.gain.value = 0.4;
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+  } else if (type === "bossDie") {
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.6);
+    gain.gain.value = 0.5;
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.7);
+  } else if (type === "score") {
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+    gain.gain.value = 0.2;
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+  } else if (type === "gameover") {
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.8);
+    gain.gain.value = 0.6;
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1);
+  }
+
+  osc.start();
+  osc.stop(audioCtx.currentTime + (type === "gameover" ? 1 : 0.8));
+}
+
+// ====================== INPUT ======================
+window.addEventListener("mousedown", e => handleInput(e.clientX, e.clientY));
+window.addEventListener("touchstart", e => {
+  e.preventDefault();
+  handleInput(e.touches[0].clientX, e.touches[0].clientY);
+}, {passive: false});
+
+function handleInput(x, y) {
+  if (menu) {
+    // Loja
+    for (let i = 0; i < skins.length; i++) {
+      const bx = canvas.width / 2 - 135 + i * 90;
+      if (x > bx && x < bx + 70 && y > 370 && y < 460) {
+        buySkin(i);
+        return;
+      }
+    }
+    menu = false;
+    return;
+  }
+
+  if (gameOver) {
+    reset();
+    return;
+  }
+
+  // Dash
+  if (x > canvas.width - 170 && y > canvas.height - 110) {
+    if (Date.now() - lastDash > DASH_COOLDOWN) {
+      bird.v = -10.5;
+      lastDash = Date.now();
+      createParticles(bird.x - 10, bird.y, "#a5f3fc", 18);
+      playSound("jump");
+    }
+    return;
+  }
+
+  // Tiro
+  if (x > canvas.width - 90 && y > canvas.height - 110) {
+    if (Date.now() - lastShot > SHOT_COOLDOWN) {
+      bullets.push({x: bird.x + 18, y: bird.y - 2});
+      lastShot = Date.now();
+      createParticles(bird.x + 25, bird.y, "#fcd34d", 10);
+      playSound("shoot");
+    }
+    return;
+  }
+
+  // Pulo normal
+  bird.v = bird.jump;
+  playSound("jump");
+}
+
+function reset() {
+  bird.y = canvas.height / 2;
+  bird.v = 0;
+  pipes = [];
+  bullets = [];
+  particles = [];
+  boss = null;
+  bossHP = 5;
+  score = 0;
+  frames = 0;
+  speed = 3;
+  gameOver = false;
+}
+
+// ====================== SKINS ======================
+function buySkin(i) {
+  if (ownedSkins.includes(i)) {
+    currentSkin = i;
+  } else if (coins >= skins[i].price) {
+    coins -= skins[i].price;
+    ownedSkins.push(i);
+    currentSkin = i;
+    save();
+  }
+}
+
+function save() {
+  localStorage.setItem("coins", coins);
+  localStorage.setItem("ownedSkins", JSON.stringify(ownedSkins));
+  localStorage.setItem("highScore", Math.max(highScore, score));
+}
+
+// ====================== PARTÍCULAS ======================
+function createParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const vel = Math.random() * 4 + 1;
+    particles.push({
+      x: x,
+      y: y,
+      vx: Math.cos(angle) * vel,
+      vy: Math.sin(angle) * vel - 2,
+      life: 28 + Math.random() * 12,
+      maxLife: 28 + Math.random() * 12,
+      size: 3 + Math.random() * 4,
+      color: color
+    });
+  }
+}
+
+// ====================== DRAW BIRD ======================
+function drawBird() {
+  ctx.save();
+  ctx.translate(bird.x, bird.y);
+
+  if (!menu && !gameOver) {
+    const angle = Math.min(Math.PI / 3.5, Math.max(-Math.PI / 3, bird.v / 9));
+    ctx.rotate(angle);
+  }
+
+  const col = skins[currentSkin].color;
+
+  // Corpo
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.arc(0, 0, bird.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#1e2937";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Asa
+  ctx.fillStyle = "rgba(255,255,255,0.8)";
+  const wing = Math.sin(frames * 0.5) * 6;
+  ctx.beginPath();
+  ctx.ellipse(-7, 2, 10, 5 + wing, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // Olho
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.arc(8, -6, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#111";
+  ctx.beginPath(); ctx.arc(10, -6, 3, 0, Math.PI * 2); ctx.fill();
+
+  // Bico
+  ctx.fillStyle = "#f97316";
+  ctx.beginPath();
+  ctx.moveTo(14, -2);
+  ctx.lineTo(24, 1);
+  ctx.lineTo(14, 5);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ====================== UPDATE ======================
+function update() {
+  if (menu || gameOver) return;
+
+  frames++;
+  bird.v += bird.g;
+  bird.y += bird.v;
+
+  level = Math.floor(score / 10) + 1;
+  speed = 3 + level * 0.4;
+
+  // Colisão bordas
+  if (bird.y > canvas.height - 35 || bird.y < 10) gameOver = true;
+
+  // Gerar canos
+  if (frames % 78 === 0) {
+    const gap = Math.max(125, 175 - level * 8);
+    const top = 70 + Math.random() * (canvas.height - gap - 160);
+    pipes.push({x: canvas.width + 30, top: top, bottom: top + gap, passed: false});
+  }
+
+  // Boss
+  if (score % 20 === 0 && score > 0 && !boss) {
+    boss = {x: canvas.width + 80, y: canvas.height / 2};
+    bossHP = 6;
+  }
+
+  // Atualizar canos
+  for (let i = pipes.length - 1; i >= 0; i--) {
+    const p = pipes[i];
+    p.x -= speed;
+
+    // Colisão pássaro (aproximada com rotação)
+    const birdLeft = bird.x - bird.r * 0.9;
+    const birdRight = bird.x + bird.r * 0.9;
+    const birdTop = bird.y - bird.r * 0.9;
+    const birdBottom = bird.y + bird.r * 0.9;
+
+    if (birdRight > p.x && birdLeft < p.x + 68) {
+      if (birdTop < p.top || birdBottom > p.bottom) {
+        gameOver = true;
+        playSound("hit");
+      }
+    }
+
+    if (!p.passed && bird.x > p.x + 68) {
+      score++;
+      p.passed = true;
+      playSound("score");
+    }
+
+    if (p.x < -80) pipes.splice(i, 1);
+  }
+
+  // Balas
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.x += 10.5;
+
+    // Colisão com canos
+    for (let j = pipes.length - 1; j >= 0; j--) {
+      const p = pipes[j];
+      if (b.x > p.x && b.x < p.x + 68 && b.y > p.top - 8 && b.y < p.bottom + 8) {
+        createParticles(p.x + 32, b.y, "#86efac", 14);
+        pipes.splice(j, 1);
+        bullets.splice(i, 1);
+        playSound("hit");
+        break;
+      }
+    }
+
+    if (b.x > canvas.width + 30) bullets.splice(i, 1);
+  }
+
+  // Boss
+  if (boss) {
+    boss.x -= 2.4;
+    boss.y = canvas.height / 2 + Math.sin(frames / 15) * 55;
+
+    if (Math.hypot(bird.x - boss.x, bird.y - boss.y) < 42) {
+      gameOver = true;
+      playSound("hit");
+    }
+
+    // Balas no boss
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      if (Math.hypot(bullets[i].x - boss.x, bullets[i].y - boss.y) < 36) {
+        bossHP--;
+        createParticles(bullets[i].x, bullets[i].y, "#c084fc", 22);
+        bullets.splice(i, 1);
+        playSound("hit");
+
+        if (bossHP <= 0) {
+          createParticles(boss.x, boss.y, "#e879f9", 55);
+          coins += 20;
+          playSound("bossDie");
+          boss = null;
+          save();
+        }
+        break;
+      }
+    }
+
+    if (boss && boss.x < -100) boss = null;
+  }
+
+  // Partículas
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.18;
+    p.life--;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  // Missão
+  if (score >= 10 && !missionDone) {
+    missionDone = true;
+    localStorage.setItem("mission1", "true");
+    coins += 35;
+    save();
+  }
+
+  if (gameOver) {
+    highScore = Math.max(highScore, score);
+    save();
+    playSound("gameover");
+  }
+}
+
+// ====================== DRAW ======================
+function draw() {
+  ctx.fillStyle = "#38bdf8";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (menu) {
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.font = "bold 42px Arial";
+    ctx.fillText("FLAPPY PRO 5.1", canvas.width/2, 100);
+
+    ctx.font = "24px Arial";
+    ctx.fillText(`Moedas: ${coins}   Recorde: ${highScore}`, canvas.width/2, 170);
+
+    drawBird(); // desenha no centro do menu (posição ajustada no translate interno)
+
+    // Skins
+    for (let i = 0; i < skins.length; i++) {
+      const bx = canvas.width / 2 - 135 + i * 90;
+      ctx.fillStyle = skins[i].color;
+      ctx.fillRect(bx, 370, 70, 70);
+      ctx.strokeStyle = currentSkin === i ? "#fff" : "#1e2937";
+      ctx.lineWidth = currentSkin === i ? 6 : 3;
+      ctx.strokeRect(bx, 370, 70, 70);
+
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 22px Arial";
+      ctx.fillText(ownedSkins.includes(i) ? "✓" : skins[i].price, bx + 35, 435);
+    }
+
+    ctx.font = "20px Arial";
+    ctx.fillText("Toque na tela para começar", canvas.width/2, canvas.height - 70);
+    return;
+  }
+
+  // Canos
+  ctx.fillStyle = "#22c55e";
+  pipes.forEach(p => {
+    ctx.fillRect(p.x, 0, 68, p.top);
+    ctx.fillRect(p.x, p.bottom, 68, canvas.height);
+    ctx.fillStyle = "#15803d";
+    ctx.fillRect(p.x - 5, 0, 10, p.top);
+    ctx.fillRect(p.x - 5, p.bottom, 10, canvas.height);
+    ctx.fillStyle = "#22c55e";
+  });
+
+  // Boss
+  if (boss) {
+    ctx.fillStyle = "#7e22ce";
+    ctx.beginPath();
+    ctx.arc(boss.x, boss.y, 34, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.font = "30px Arial";
+    ctx.fillText("👑", boss.x - 10, boss.y + 12);
+  }
+
+  // Balas
+  ctx.fillStyle = "#facc15";
+  bullets.forEach(b => {
+    ctx.fillRect(b.x, b.y - 4, 22, 8);
+  });
+
+  // Partículas
+  particles.forEach(p => {
+    const alpha = p.life / p.maxLife;
+    ctx.globalAlpha = alpha * 0.95;
+    ctx.fillStyle = p.color;
+    const s = p.size * (p.life / p.maxLife);
+    ctx.fillRect(p.x - s/2, p.y - s/2, s, s);
+  });
+  ctx.globalAlpha = 1;
+
+  drawBird();
+
+  // Score
+  ctx.fillStyle = "#fff";
+  ctx.font = "bold 58px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText(score, canvas.width / 2, 85);
+
+  // Botões
+  const dashReady = Date.now() - lastDash > DASH_COOLDOWN;
+  const shotReady = Date.now() - lastShot > SHOT_COOLDOWN;
+
+  ctx.fillStyle = dashReady ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.12)";
+  ctx.fillRect(canvas.width - 170, canvas.height - 115, 72, 72);
+  ctx.fillStyle = shotReady ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.12)";
+  ctx.fillRect(canvas.width - 90, canvas.height - 115, 72, 72);
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "bold 32px Arial";
+  ctx.fillText("D", canvas.width - 134, canvas.height - 68);
+  ctx.fillText("F", canvas.width - 54, canvas.height - 68);
+
+  ctx.font = "16px Arial";
+  ctx.fillText("DASH", canvas.width - 134, canvas.height - 38);
+  ctx.fillText("TIRO", canvas.width - 54, canvas.height - 38);
+
+  if (gameOver) {
+    ctx.fillStyle = "rgba(0,0,0,0.75)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 62px Arial";
+    ctx.fillText("GAME OVER", canvas.width/2, canvas.height/2 - 50);
+
+    ctx.font = "30px Arial";
+    ctx.fillText(`Pontuação: ${score}`, canvas.width/2, canvas.height/2 + 20);
+    ctx.fillText(`Recorde: ${highScore}`, canvas.width/2, canvas.height/2 + 65);
+
+    ctx.font = "22px Arial";
+    ctx.fillText("Toque na tela para jogar novamente", canvas.width/2, canvas.height/2 + 130);
+  }
+}
+
+// ====================== LOOP ======================
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
