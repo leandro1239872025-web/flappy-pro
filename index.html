@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Flappy Pro V5.1 Mobile</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        html, body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Arial', sans-serif;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: fixed;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            background: linear-gradient(to bottom, #4facfe 0%, #00f2fe 100%);
+            display: block;
+            width: 100%;
+            height: 100%;
+            max-width: 100vw;
+            max-height: 100vh;
+            touch-action: none;
+        }
+
+        #mobile-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 120px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 100;
+            gap: 10px;
+        }
+
+        .control-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.25);
+            border: 3px solid white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 28px;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            transition: all 0.1s ease;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-btn:active {
+            background: rgba(255, 255, 255, 0.5);
+            transform: scale(0.95);
+        }
+
+        #shop-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .shop-container {
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .shop-title {
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .coins-display {
+            color: #f1c40f;
+            font-size: 24px;
+            text-align: center;
+            margin-bottom: 30px;
+            font-weight: bold;
+        }
+
+        .skin-item {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid white;
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            touch-action: none;
+        }
+
+        .skin-preview {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 2px solid white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .skin-info {
+            flex: 1;
+            color: white;
+        }
+
+        .skin-name {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .skin-price {
+            font-size: 14px;
+            color: #f1c40f;
+        }
+
+        .skin-status {
+            font-size: 12px;
+            color: #2ecc71;
+        }
+
+        .shop-btn {
+            background: rgba(46, 204, 113, 0.8);
+            border: 2px solid #2ecc71;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            touch-action: none;
+            transition: all 0.2s ease;
+            width: 100%;
+            text-align: center;
+        }
+
+        .shop-btn:active {
+            background: rgba(46, 204, 113, 1);
+            transform: scale(0.98);
+        }
+
+        .shop-btn:disabled {
+            background: rgba(100, 100, 100, 0.5);
+            border-color: #666;
+            color: #999;
+        }
+
+        .close-shop-btn {
+            background: rgba(231, 76, 60, 0.8);
+            border: 2px solid #e74c3c;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            touch-action: none;
+            margin-top: 30px;
+            width: 100%;
+            transition: all 0.2s ease;
+        }
+
+        .close-shop-btn:active {
+            background: rgba(231, 76, 60, 1);
+            transform: scale(0.98);
+        }
+
+        #game-over-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 150;
+        }
+
+        .game-over-content {
+            text-align: center;
+        }
+
+        .game-over-title {
+            color: white;
+            font-size: 48px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        .game-over-stats {
+            color: white;
+            font-size: 24px;
+            margin-bottom: 30px;
+        }
+
+        .game-over-stat-line {
+            margin: 10px 0;
+        }
+
+        .retry-btn {
+            background: rgba(52, 152, 219, 0.9);
+            border: 3px solid white;
+            color: white;
+            padding: 20px 40px;
+            border-radius: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            touch-action: none;
+            transition: all 0.2s ease;
+            margin-top: 20px;
+        }
+
+        .retry-btn:active {
+            background: rgba(52, 152, 219, 1);
+            transform: scale(0.95);
+        }
+
+        #menu-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(79, 172, 254, 0.2), rgba(0, 242, 254, 0.2));
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 150;
+            padding: 20px;
+        }
+
+        .menu-content {
+            text-align: center;
+        }
+
+        .menu-title {
+            color: white;
+            font-size: 48px;
+            font-weight: bold;
+            margin-bottom: 40px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .menu-version {
+            color: #f1c40f;
+            font-size: 16px;
+            margin-bottom: 40px;
+        }
+
+        .menu-btn {
+            background: rgba(52, 152, 219, 0.9);
+            border: 3px solid white;
+            color: white;
+            padding: 20px 40px;
+            border-radius: 15px;
+            font-size: 22px;
+            font-weight: bold;
+            cursor: pointer;
+            touch-action: none;
+            transition: all 0.2s ease;
+            margin: 15px 0;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .menu-btn:active {
+            background: rgba(52, 152, 219, 1);
+            transform: scale(0.95);
+        }
+
+        .shop-btn-menu {
+            background: rgba(46, 204, 113, 0.9);
+            border-color: #2ecc71;
+        }
+
+        .shop-btn-menu:active {
+            background: rgba(46, 204, 113, 1);
+        }
+
+        .menu-info {
+            color: white;
+            font-size: 14px;
+            margin-top: 30px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Menu Inicial -->
+        <div id="menu-overlay">
+            <div class="menu-content">
+                <div class="menu-title">🎮 FLAPPY PRO</div>
+                <div class="menu-version">V5.1 - Mobile Edition</div>
+                <button class="menu-btn" id="start-btn">INICIAR JOGO</button>
+                <button class="menu-btn shop-btn-menu" id="shop-btn-menu">🛍️ LOJA</button>
+                <div class="menu-info">
+                    <div>D: Dash | F: Atirar | Toque: Voar</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loja -->
+        <div id="shop-overlay">
+            <div class="shop-container">
+                <div class="shop-title">🛍️ LOJA DE SKINS</div>
+                <div class="coins-display">💰 Moedas: <span id="shop-coins">0</span></div>
+                <div id="skins-list"></div>
+                <button class="close-shop-btn" id="close-shop-btn">← VOLTAR</button>
+            </div>
+        </div>
+
+        <!-- Game Over -->
+        <div id="game-over-overlay">
+            <div class="game-over-content">
+                <div class="game-over-title">GAME OVER</div>
+                <div class="game-over-stats">
+                    <div class="game-over-stat-line">Score: <span id="final-score">0</span></div>
+                    <div class="game-over-stat-line">Nível: <span id="final-level">1</span></div>
+                    <div class="game-over-stat-line">💰 Moedas Ganhas: <span id="final-coins">0</span></div>
+                </div>
+                <button class="retry-btn" id="retry-btn">TENTAR NOVAMENTE</button>
+            </div>
+        </div>
+
+        <!-- Controles Mobile -->
+        <div id="mobile-controls">
+            <button class="control-btn" id="btn-dash">💨</button>
+            <button class="control-btn" id="btn-jump">⬆️</button>
+            <button class="control-btn" id="btn-shoot">💥</button>
+        </div>
+    </div>
+
+    <script>
+        // ========== CONFIGURAÇÃO DO CANVAS ==========
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight - 120; // Espaço para controles
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // ========== ESTADO DO JOGO ==========
+        const GameState = {
+            MENU: 'menu',
+            PLAYING: 'playing',
+            GAMEOVER: 'gameover',
+            SHOP: 'shop'
+        };
+
+        let currentState = GameState.MENU;
+        let score = 0;
+        let coins = parseInt(localStorage.getItem('flappy_pro_coins')) || 0;
+        let level = 1;
+        let coinsGainedThisGame = 0;
+
+        // ========== PÁSSARO ==========
+        const bird = {
+            x: 50,
+            y: canvas.height / 2,
+            width: 34,
+            height: 24,
+            gravity: 0.28,
+            velocity: 0,
+            jump: -5,
+            color: localStorage.getItem('flappy_pro_skin') || '#FFD700',
+            wingAngle: 0,
+            wingSpeed: 0.15,
+            dashCooldown: 0,
+            shootCooldown: 0,
+            isDashing: false,
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+
+                let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, this.velocity * 0.1));
+                ctx.rotate(rotation);
+
+                // Corpo
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, this.width / 2, this.height / 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Olho
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(8, -4, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = 'black';
+                ctx.beginPath();
+                ctx.arc(10, -4, 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Bico
+                ctx.fillStyle = '#FF8C00';
+                ctx.beginPath();
+                ctx.moveTo(12, 0);
+                ctx.lineTo(22, 2);
+                ctx.lineTo(12, 6);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Asa
+                ctx.fillStyle = this.isDashing ? 'rgba(255, 255, 0, 0.8)' : 'rgba(255, 255, 255, 0.6)';
+                this.wingAngle += this.isDashing ? this.wingSpeed * 3 : this.wingSpeed;
+                let wingY = Math.sin(this.wingAngle) * 5;
+                ctx.beginPath();
+                ctx.ellipse(-5, wingY, 8, 5, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.restore();
+            },
+
+            update() {
+                if (currentState === GameState.PLAYING) {
+                    if (this.dashCooldown > 0) this.dashCooldown--;
+                    if (this.shootCooldown > 0) this.shootCooldown--;
+
+                    if (this.isDashing) {
+                        this.velocity = -8;
+                        if (this.dashCooldown < 45) this.isDashing = false;
+                    }
+
+                    this.velocity += this.gravity;
+                    this.y += this.velocity;
+
+                    if (this.y + this.height / 2 > canvas.height) {
+                        this.y = canvas.height - this.height / 2;
+                        gameOver();
+                    }
+                    if (this.y - this.height / 2 < 0) {
+                        this.y = this.height / 2;
+                        this.velocity = 0;
+                    }
+                }
+            },
+
+            flap() {
+                if (currentState === GameState.PLAYING) {
+                    this.velocity = this.jump;
+                }
+            },
+
+            dash() {
+                if (currentState === GameState.PLAYING && this.dashCooldown === 0) {
+                    this.isDashing = true;
+                    this.dashCooldown = 60;
+                }
+            },
+
+            shoot() {
+                if (currentState === GameState.PLAYING && this.shootCooldown === 0) {
+                    projectiles.push(new Projectile(this.x + this.width, this.y + this.height / 2));
+                    this.shootCooldown = 20;
+                }
+            }
+        };
+
+        // ========== PROJÉTEIS ==========
+        class Projectile {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 4;
+                this.speed = 7;
+            }
+
+            draw() {
+                ctx.fillStyle = '#FFF';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#000';
+                ctx.stroke();
+            }
+
+            update() {
+                this.x += this.speed;
+            }
+        }
+
+        let projectiles = [];
+
+        // ========== CANOS ==========
+        class Pipe {
+            constructor() {
+                this.spacing = 160 - (level * 2);
+                if (this.spacing < 100) this.spacing = 100;
+
+                this.top = Math.random() * (canvas.height / 2) + 50;
+                this.x = canvas.width;
+                this.width = 50;
+                this.speed = 2 + (level * 0.2);
+                this.passed = false;
+            }
+
+            draw() {
+                ctx.fillStyle = '#2ecc71';
+                ctx.strokeStyle = '#27ae60';
+                ctx.lineWidth = 3;
+
+                ctx.fillRect(this.x, 0, this.width, this.top);
+                ctx.strokeRect(this.x, 0, this.width, this.top);
+
+                ctx.fillRect(this.x, this.top + this.spacing, this.width, canvas.height);
+                ctx.strokeRect(this.x, this.top + this.spacing, this.width, canvas.height);
+            }
+
+            update() {
+                this.x -= this.speed;
+            }
+
+            hits(bird) {
+                if (bird.y - bird.height / 2 < this.top || bird.y + bird.height / 2 > this.top + this.spacing) {
+                    if (bird.x + bird.width / 2 > this.x && bird.x - bird.width / 2 < this.x + this.width) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+
+        let pipes = [];
+        let frameCount = 0;
+
+        // ========== BOSS ==========
+        class Boss {
+            constructor() {
+                this.x = canvas.width + 100;
+                this.y = canvas.height / 2;
+                this.width = 80;
+                this.height = 80;
+                this.hp = 10 + (level * 2);
+                this.maxHp = this.hp;
+                this.speed = 1;
+                this.direction = 1;
+                this.active = false;
+            }
+
+            draw() {
+                if (!this.active) return;
+
+                ctx.fillStyle = '#e74c3c';
+                ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+
+                const barWidth = 100;
+                ctx.fillStyle = '#333';
+                ctx.fillRect(this.x - barWidth / 2, this.y - this.height / 2 - 20, barWidth, 10);
+                ctx.fillStyle = '#2ecc71';
+                ctx.fillRect(this.x - barWidth / 2, this.y - this.height / 2 - 20, (this.hp / this.maxHp) * barWidth, 10);
+            }
+
+            update() {
+                if (!this.active) {
+                    if (score > 0 && score % 20 === 0 && !bossActiveThisCycle) {
+                        this.active = true;
+                        bossActiveThisCycle = true;
+                    }
+                    return;
+                }
+
+                if (this.x > canvas.width - 100) {
+                    this.x -= this.speed;
+                } else {
+                    this.y += this.direction * this.speed * 2;
+                    if (this.y > canvas.height - 100 || this.y < 100) {
+                        this.direction *= -1;
+                    }
+                }
+            }
+
+            hit() {
+                this.hp--;
+                if (this.hp <= 0) {
+                    this.active = false;
+                    this.hp = this.maxHp;
+                    this.x = canvas.width + 100;
+                    coins += 50;
+                    coinsGainedThisGame += 50;
+                    saveData();
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        let boss = new Boss();
+        let bossActiveThisCycle = false;
+
+        // ========== MOEDAS ==========
+        class Coin {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 8;
+                this.collected = false;
+            }
+
+            draw() {
+                if (this.collected) return;
+                ctx.fillStyle = '#f1c40f';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#d35400';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 10px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('$', this.x, this.y + 4);
+            }
+
+            update(speed) {
+                this.x -= speed;
+            }
+        }
+
+        let gameCoins = [];
+
+        // ========== LOJA DE SKINS ==========
+        const skins = [
+            { name: 'Amarelo', color: '#FFD700', price: 0, owned: true },
+            { name: 'Vermelho', color: '#e74c3c', price: 100, owned: false },
+            { name: 'Azul', color: '#3498db', price: 200, owned: false },
+            { name: 'Verde', color: '#2ecc71', price: 300, owned: false }
+        ];
+
+        const savedSkins = JSON.parse(localStorage.getItem('flappy_pro_owned_skins'));
+        if (savedSkins) {
+            skins.forEach((s, i) => {
+                if (savedSkins[i]) s.owned = savedSkins[i].owned;
+            });
+        }
+
+        function buySkin(index) {
+            const skin = skins[index];
+            if (!skin.owned && coins >= skin.price) {
+                coins -= skin.price;
+                skin.owned = true;
+                saveData();
+                updateShopDisplay();
+                return true;
+            } else if (skin.owned) {
+                bird.color = skin.color;
+                saveData();
+                updateShopDisplay();
+                return true;
+            }
+            return false;
+        }
+
+        function updateShopDisplay() {
+            document.getElementById('shop-coins').textContent = coins;
+            const skinsList = document.getElementById('skins-list');
+            skinsList.innerHTML = '';
+
+            skins.forEach((skin, index) => {
+                const skinItem = document.createElement('div');
+                skinItem.className = 'skin-item';
+                skinItem.innerHTML = `
+                    <div class="skin-preview" style="background-color: ${skin.color};"></div>
+                    <div class="skin-info">
+                        <div class="skin-name">${skin.name}</div>
+                        <div class="skin-price">${skin.owned ? '✓ Comprado' : '💰 ' + skin.price}</div>
+                        ${skin.color === bird.color ? '<div class="skin-status">Equipado</div>' : ''}
+                    </div>
+                    <button class="shop-btn" onclick="buySkin(${index}); updateShopDisplay();">
+                        ${skin.owned ? 'Equipar' : 'Comprar'}
+                    </button>
+                `;
+                skinsList.appendChild(skinItem);
+            });
+        }
+
+        // ========== MISSÕES ==========
+        const missions = [
+            { id: 'm1', text: 'Chegue a 10 pontos', target: 10, reward: 30, completed: false }
+        ];
+
+        const savedMissions = JSON.parse(localStorage.getItem('flappy_pro_missions'));
+        if (savedMissions) {
+            missions.forEach((m, i) => {
+                if (savedMissions[i]) m.completed = savedMissions[i].completed;
+            });
+        }
+
+        function checkMissions() {
+            missions.forEach(m => {
+                if (!m.completed && score >= m.target) {
+                    m.completed = true;
+                    coins += m.reward;
+                    coinsGainedThisGame += m.reward;
+                    saveData();
+                    console.log(`Missão Completa: ${m.text}! +${m.reward} moedas`);
+                }
+            });
+        }
+
+        // ========== BOTÕES ==========
+        document.getElementById('start-btn').addEventListener('click', () => {
+            document.getElementById('menu-overlay').style.display = 'none';
+            startGame();
+        });
+
+        document.getElementById('shop-btn-menu').addEventListener('click', () => {
+            document.getElementById('menu-overlay').style.display = 'none';
+            document.getElementById('shop-overlay').style.display = 'flex';
+            updateShopDisplay();
+        });
+
+        document.getElementById('close-shop-btn').addEventListener('click', () => {
+            document.getElementById('shop-overlay').style.display = 'none';
+            document.getElementById('menu-overlay').style.display = 'flex';
+        });
+
+        document.getElementById('retry-btn').addEventListener('click', () => {
+            document.getElementById('game-over-overlay').style.display = 'none';
+            document.getElementById('menu-overlay').style.display = 'flex';
+            resetGame();
+        });
+
+        document.getElementById('btn-jump').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            bird.flap();
+        });
+
+        document.getElementById('btn-dash').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            bird.dash();
+        });
+
+        document.getElementById('btn-shoot').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            bird.shoot();
+        });
+
+        // Toque na tela para voar (em qualquer lugar do canvas)
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (currentState === GameState.PLAYING) {
+                bird.flap();
+            }
+        });
+
+        // ========== LOOP PRINCIPAL ==========
+        function update() {
+            bird.update();
+
+            if (currentState === GameState.PLAYING) {
+                frameCount++;
+
+                if (!boss.active && frameCount % 100 === 0) {
+                    const newPipe = new Pipe();
+                    pipes.push(newPipe);
+                    gameCoins.push(new Coin(newPipe.x + newPipe.width / 2, newPipe.top + newPipe.spacing / 2));
+                }
+
+                if (score % 20 !== 0) bossActiveThisCycle = false;
+
+                boss.update();
+
+                pipes.forEach((pipe, index) => {
+                    pipe.update();
+                    if (pipe.hits(bird)) gameOver();
+                    if (!pipe.passed && pipe.x + pipe.width < bird.x) {
+                        pipe.passed = true;
+                        score++;
+                        coinsGainedThisGame++;
+                        checkMissions();
+                        if (score % 10 === 0) level++;
+                    }
+                    if (pipe.x + pipe.width < 0) pipes.splice(index, 1);
+                });
+
+                gameCoins.forEach((coin, index) => {
+                    coin.update(2 + (level * 0.2));
+                    const dist = Math.hypot(bird.x - coin.x, bird.y - coin.y);
+                    if (dist < bird.width / 2 + coin.radius) {
+                        coins++;
+                        coinsGainedThisGame++;
+                        gameCoins.splice(index, 1);
+                        saveData();
+                    }
+                    if (coin.x + coin.radius < 0) gameCoins.splice(index, 1);
+                });
+
+                projectiles.forEach((p, pIndex) => {
+                    p.update();
+
+                    if (boss.active) {
+                        if (p.x > boss.x - boss.width / 2 && p.x < boss.x + boss.width / 2 &&
+                            p.y > boss.y - boss.height / 2 && p.y < boss.y + boss.height / 2) {
+                            projectiles.splice(pIndex, 1);
+                            boss.hit();
+                        }
+                    }
+
+                    if (p.x > canvas.width) projectiles.splice(pIndex, 1);
+                });
+
+                if (boss.active) {
+                    if (bird.x + bird.width / 2 > boss.x - boss.width / 2 && bird.x - bird.width / 2 < boss.x + boss.width / 2 &&
+                        bird.y + bird.height / 2 > boss.y - boss.height / 2 && bird.y - bird.height / 2 < boss.y + boss.height / 2) {
+                        gameOver();
+                    }
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            pipes.forEach(pipe => pipe.draw());
+            gameCoins.forEach(coin => coin.draw());
+            projectiles.forEach(p => p.draw());
+            boss.draw();
+            bird.draw();
+
+            // UI
+            if (currentState === GameState.PLAYING) {
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 28px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`Score: ${score}`, canvas.width / 2, 50);
+                ctx.font = '20px Arial';
+                ctx.fillText(`Lv. ${level}`, canvas.width / 2, 80);
+
+                ctx.fillStyle = '#f1c40f';
+                ctx.textAlign = 'left';
+                ctx.font = 'bold 24px Arial';
+                ctx.fillText(`💰 ${coins}`, 20, 50);
+            }
+
+            requestAnimationFrame(() => {
+                update();
+                draw();
+            });
+        }
+
+        // ========== FUNÇÕES DO JOGO ==========
+        function startGame() {
+            currentState = GameState.PLAYING;
+            score = 0;
+            level = 1;
+            coinsGainedThisGame = 0;
+            pipes = [];
+            projectiles = [];
+            gameCoins = [];
+            frameCount = 0;
+            boss.active = false;
+            boss.x = canvas.width + 100;
+            bossActiveThisCycle = false;
+            bird.y = canvas.height / 2;
+            bird.velocity = 0;
+        }
+
+        function gameOver() {
+            currentState = GameState.GAMEOVER;
+            saveData();
+            document.getElementById('final-score').textContent = score;
+            document.getElementById('final-level').textContent = level;
+            document.getElementById('final-coins').textContent = coinsGainedThisGame;
+            document.getElementById('game-over-overlay').style.display = 'flex';
+        }
+
+        function resetGame() {
+            bird.y = canvas.height / 2;
+            bird.velocity = 0;
+            bird.dashCooldown = 0;
+            bird.shootCooldown = 0;
+            bird.isDashing = false;
+            pipes = [];
+            projectiles = [];
+            gameCoins = [];
+            boss.active = false;
+            currentState = GameState.MENU;
+        }
+
+        function saveData() {
+            localStorage.setItem('flappy_pro_coins', coins);
+            localStorage.setItem('flappy_pro_skin', bird.color);
+            localStorage.setItem('flappy_pro_owned_skins', JSON.stringify(skins));
+            localStorage.setItem('flappy_pro_missions', JSON.stringify(missions));
+        }
+
+        // ========== INICIAR JOGO ==========
+        draw();
+    </script>
+</body>
+  </html>
